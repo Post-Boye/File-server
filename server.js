@@ -5,9 +5,9 @@ const http = httpObj.createServer(app);
 
 const mainURL = "http://localhost:3000";
 
-// const mongodb = require("mongodb");
-// const mongoClient = mongodb.MongoClient;
-// const ObjectId = mongodb.ObjectId;
+const mongodb = require("mongodb");
+const mongoClient = mongodb.MongoClient;
+const ObjectId = mongodb.ObjectId;
 
 app.set("view engine", "ejs");
 
@@ -54,11 +54,11 @@ let nodemailerObject = {
 http.listen(3000,function(){
     console.log("server started at " + mainURL);
 
-    // mongoClient.connect("mongodb://localhost:27017",{
-    //     useNewUrlParser: true
-    // }, function (error,client){
-    //     database = client.db("File_server");
-    //     console.log("Database connected.");
+    mongoClient.connect("mongodb+srv://postboyemalone:HHYhMQCZvO9Fvq6d@malone2.4ndmjtd.mongodb.net/",{
+        useNewUrlParser: true
+    }, function (error,client){
+        database = client.db("File_server");
+        console.log("Database connected.");
 
         app.get("/", function(request, result){
             result.render("index",{
@@ -333,16 +333,78 @@ http.listen(3000,function(){
 
 
         });
+        app.post("/Resetpassword",async function(request,result){
+            let email = request.fields.email;
+            let reset_token = request.fields.reset_token;
+            let new_password = request.fields.new_password;
+            let confirm_password = request.fields.confirm_password;
+
+            if (new_password != confirm_password) {
+                request.status = "error";
+                request.message = "Password does not match.";
+
+                request.render("ResetPassword", {
+                    "request": request,
+                    "email": email,
+                    "reset_token": reset_token
+                });
+
+                return false;
+            }
+
+            let user = await database.collection("users").findOne({
+                $and: [{
+                    "email": email,
+                },{
+                    "reset_token": parseInt(reset_token)
+                }]
+            });
+
+            if (user == null){
+                request.status = "error"
+                request.message = "Email does not exists. Or recovery link is expired.";
+
+                result.render("ResetPassword", {
+                    "request": request,
+                    "email": email,
+                    "reset_token": reset_token
+                });
+
+                return false;
+            }
+
+            bcrypt.hash(new_password, 10, async function(error,hash){
+                await database.collection("users").findOneAndUpdate({
+                    $and: [{
+                        "email": email,
+
+                    }, {
+                        "reset_token": parseInt(reset_token)
+                    }]
+                }, {
+                    $set: {
+                        "reset_token": "",
+                        "password": harsh
+                    }
+                });
+
+                request.status = "success";
+                request.message = "Password has been changed. Please try login again.";
+
+                result.render("Login", {
+                    "request": request
+                });
+            });
 
 
+
+        });
+        app.get("/Logout", function(request,result){
+            request.session.destroy();
+            result.redirect("/");
+        });
 
      });
 
 
-        
-       
-
-
-
-    
-});
+    })});
