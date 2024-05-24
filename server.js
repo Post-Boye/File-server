@@ -5,7 +5,7 @@ const http = httpObj.createServer(app);
 
 const mainURL = "http://localhost:3000";
 
-const mongodb = require("mongodb");
+const mongodb = require('mongodb');
 const mongoClient = mongodb.MongoClient;
 const ObjectId = mongodb.ObjectId;
 
@@ -49,7 +49,49 @@ let nodemailerObject = {
         user : "boyejustice64@gmail.com",
         pass : ""
     }
+};
+
+function recursiveGetFolder(files, _id){
+    var singleFile = null;
+
+    for (var a = 0; a < files.length; a++){
+        const file = files[a];
+
+        if(file.type == "folder"){
+            if (file._id == _id){
+                return file;
+            }
+
+            if(file.files.length > 0){
+                singleFile = recursiveGetFolder(file.files, _id);
+
+                if(singleFile != null){
+                    return singleFile
+                }
+            }
+        }
+    }
 }
+
+function getUpdatedArray(arr, _id, uploadedObj){
+    for (var a = 0; a < arr.length; a++){
+        if (arr[a].type == "folder"){
+            if (arr[a]._id == _id){
+                arr[a].files.push(uploadedObj);
+                arr[a]._id = ObjectId(arr[a]._id);
+            }
+
+            if (arr[a].files.length > 0){
+                arr[a]._id = ObjectId(arr[a]._id);
+                getUpdatedArray(arr[a].files,_id, uploadedObj);
+            }
+        }
+    }
+
+    return arr;
+}
+
+
 
 http.listen(3000,function(){
     console.log("server started at " + mainURL);
@@ -59,6 +101,253 @@ http.listen(3000,function(){
     }, function (error,client){
         database = client.db("File_server");
         console.log("Database connected.");
+       
+        app.post("/UploadFile", async function (request, result) {
+            if (request.session.user){
+                var user = await database.collection("users").findOne({
+                    "_id": ObjectId(request.session.user._id)
+
+                });
+                if (request.files.file.size > 0) {
+                    const _id = request.fields._id;
+                    var uploadedObj ={
+                        "_id": ObjectId(),
+                        "size": request.files.file.size, // in bytes
+                        "name": request.files.file.name,
+                        "type": request.files.file.type,
+                       "filePath": "",
+                       "createdAt": new Date().getTime()
+                    };
+
+                    var filePath = ""
+                    if (_id == ""){
+                        filePath = "public/uploads/" + user.email + "/" + new Date().getTime() + "-" + request.files.file.name;
+                        uploadedObj.filePath = filePath;
+        
+                        if (!fileSystem.existsSync("public/uploads/" + user.email)){
+                            fileSystem.mkdirSync("public/uploads/" + user.email);
+                        }
+                        // Read the file
+                        fileSystem.readFile(request.files.file.path, function (err, data){
+                            if (err) throw err;
+                            console.log('File read!');
+
+                            // Write the file
+                            fileSystem.writeFile(filePath, data, async function (err){
+                                if (err) throw err;
+                                console.log('File written!');
+                                await database.collection("users").updateOne({
+                                    "_id": ObjectId(request.session.user._id)
+                                }, {
+                                    $push: {
+                                        "uploaded": uploadedObj
+                                    }
+
+                                });
+
+                                result.redirect("/MyUploads/" + _id);
+                    
+                            });
+
+                            // Delete the file
+                            fileSystem.unlink(request.files.file.path, function (err){
+                                if (err) throw err;
+                                console.log('File deleted!');
+                            });
+
+                        });
+
+                    } else {
+                        var folderObj = await recursiveGetFolder(user.uploaded, _id);
+
+                        uploadedObj.filePath = folderObj.filePath + "/" + request.files.file.name;
+
+                        var updatedArray = await getUpdatedArray(user.uploaded, _id, uploadedObj);
+                        fileSystem.readFile(request.files.file.path, function (err, data){
+                            if (err) throw err;
+                            console.log('File read!');
+
+                            fileSystem.writeFile(uploadedObj.filePath, data, async function (err){
+                                if (err) throw err;
+                                console.log('File written!');
+
+                                for (var a = 0; a < updatedArray.length; a++ ){
+                                    updatedArray[a]._id = ObjectId(updatedArray[a]._id); 
+                                }
+                                await database.collection("users").updateOne({
+                                    "_id": ObjectId(request.session.user._id)
+                                }, {
+                                    $set: {
+                                        "uploaded": updatedArray
+                                    }
+                                });
+
+                                result.redirect("/MyUploads/" + _id);
+                            });
+
+                            // Delete the file
+                            fileSystem.unlink(request.files.file.path, function (err){
+                                if (err) throw err;
+                                console.log('File deleted!');
+                            });
+
+                        });
+
+                    }
+
+                } else {
+                    request.status = "error";
+                    request.message = "Please select valid image.";
+
+                    result.render("MyUploads", {
+                        "request": request
+                    });
+                }
+
+                return false;
+            }
+
+            result.redirect("/Login");
+        });
+
+      
+
+        app.post("/CreateFolder",async function(request,result){
+            const name = request.fields.name
+            const _id = request.fields._id;
+
+            if (request.session.user){
+                var user = await database.collection("users").findOne({
+                    "_id": ObjectId(request.session.user._id)
+                });
+                var uploadedObj = {
+                    "_id": ObjectId(),
+                    "type": "folder",
+                    "folderName": name,
+                    "files": [],
+                    "folderPath": "",
+                    "createAt": new Date().getTime()
+                };
+
+                var folderPath = ""  
+                var updatedArray = [];
+
+                if (_id == ""){
+                    folderPath = "public/uploads/" + user.email + "/" + name;
+                    uploadedObj.folderPath = folderPath;
+
+                    if(!FileSystem.existsSync("public/uploads/" + user.email)){
+                        FileSystem.mkdirSync("public/uploads/" + user.email);
+                    }else{
+                        var folderObj = await recursiveGetFolder(user.uploaded, _id);
+                        uploadedObj.folderPath = folderObj.folderPath + "/" + name;
+                        updatedArray = await getUpdatedArray(user.uploaded, _id, uploadedObj);
+                    }
+
+                    if (uploadedObj.folderPath == ""){
+                        request.session.status == "error"
+                        request.session.message = "Folder name must not be empty.";
+
+                        result.redirect("/MyUploads");
+                        return false
+                    }
+
+                    if (FileSystem.existsSync(uploadedObj.folderPath)){
+                        request.session.status = "error";
+                        request.session.message = "folder with the same name already exists.";
+                        result.redirect("/Myuploads");
+                        return false;
+                    }
+
+                    FileSystem.mkdirSync(uploadedObj.folderPath);
+
+                    if(_id = ""){
+                        await database.collection("users").updateOne({
+                            "_id": ObjectId(request.session.user._id)
+                        }, {
+                            $push: {
+                                "uploaded": uploadedObj
+                            }
+                        });
+                    } else{
+                        for (var a = 0; a < updatedArray.length; a++ ){
+                            updatedArray[a]._id = ObjectId(updatedArray[a]._id)
+                        }
+                        
+                        await database.collection("users").updateOne({
+                            "_id": ObjectId(request.session.user._id)
+                        }, {
+                            $set: {
+                                "uploaded": updatedArray
+                            
+                            }
+                        });
+                    }
+
+                    result.redirect("/My Uploads/" + _id);
+                    return false;
+                }
+                result.redirect("/Login");
+            }
+        })
+
+        app.post("/MyUploads/:_id?", async function(request, result){
+            const _id = request.params._id;
+
+        if (request.sesseion.user){
+            let user = await database.collection("users").findOne({
+                "_id": ObjectId(request.session.user._id)
+            });
+
+            var uploaded = null;
+            var folderName = "";
+            var createdAt = "";
+            if (typeof _id == "undefined"){
+                uploaded = user.uploaded;
+
+            }else{
+                var folderObj = await recursiveGetFolder(user.uploaded, _id);
+
+                if (folderObj == null){
+                    request.status = 'error';
+                    request.message = "Folder not found.";
+                    result.render("MyUploads", {
+                        "request": request
+                    });
+                    return false 
+
+                }
+                uploaded = folderObj.files;
+                folderName = folderObj.folderName;
+                createdAt = folderObj.createdAt;
+            }
+
+            if (uploaded == null){
+                request.status = "error";
+                request.message = "Directory not found.";
+                result.render("MyUploads", {
+                    "request": request
+                });
+
+                return false;
+            }
+            result.render("MyUploads", {
+                "request" : request,
+                "uploaded" : uploaded,
+                "_id": _id,
+                "folderName": folderName,
+                "createArt" : createdAt
+            });
+    
+            return false;
+
+            
+        }
+
+        result.redirect("/Login")
+
+        
+        });
 
         app.get("/", function(request, result){
             result.render("index",{

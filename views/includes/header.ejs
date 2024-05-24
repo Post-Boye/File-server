@@ -35,6 +35,23 @@
 
                 return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
             };
+
+            getFolderSize = function(arr){
+                var sum = 0;
+                for (var a = 0; a < arr.length; a++) {
+                    if(arr[a].type == "folder") {
+                        if( arr[a].files.length > 0) {
+                            sum += getFolderSize(arr[a].files)
+                        }
+                    } else {
+                        sum += arr[a].size;
+                    }
+                } 
+
+                return sum;
+            }
+
+
         %>
 
         <!-- top nav bar -->
