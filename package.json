@@ -16,6 +16,7 @@
     "express-formidable": "^1.2.0",
     "express-session": "^1.18.0",
     "formidable": "^3.5.1",
+    "fs": "^0.0.1-security",
     "http": "^0.0.1-security",
     "mongodb": "^3.6.10",
     "mongoose": "^8.4.0",
