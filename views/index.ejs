@@ -1,3 +1,18 @@
 <%- include ("includes/header") %>
 
+<div class="container" style="margin-top: 50px;">
+    <div class="jumbotron">
+        <h1 class="display-4">Welcome to the File Server!</h1>
+        <p class="lead">This is a simple file server application where you can upload, share, and manage your files.</p>
+        <hr class="my-4">
+        <p>Get started by registering for a new account or logging in if you already have one.</p>
+        <% if (!request.isLogin) { %>
+            <a class="btn btn-primary btn-lg" href="/Register" role="button">Register</a>
+            <a class="btn btn-secondary btn-lg" href="/Login" role="button">Login</a>
+        <% } else { %>
+            <a class="btn btn-primary btn-lg" href="/MyUploads" role="button">Go to My Uploads</a>
+        <% } %>
+    </div>
+</div>
+
 <%- include ("includes/footer") %>

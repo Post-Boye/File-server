@@ -135,7 +135,9 @@ function removeFileReturnUpdated(arr, _id) {
 }
 
 function recursiveGetFile(files, _id) {
-    var singleFile = null;
+    if (!Array.isArray(files)) {
+        return null;
+    }
 
     for (var a = 0; a < files.length; a++) {
         const file = files[a];
@@ -146,17 +148,46 @@ function recursiveGetFile(files, _id) {
             }
         }
 
-        if (file.type == "folder" && file.files.length > 0) {
-            singleFile = recursiveGetFile(file.files, _id);
+        if (file.type == "folder" && Array.isArray(file.files) && file.files.length > 0) {
+            const singleFile = recursiveGetFile(file.files, _id);
             if (singleFile != null) {
                 return singleFile;
             }
         }
     }
+
+    return null;
+}
+
+function recursiveGetFolder(files, _id) {
+    if (!Array.isArray(files)) {
+        return null;
+    }
+
+    for (var a = 0; a < files.length; a++) {
+        const file = files[a];
+
+        if (file.type == "folder") {
+            if (file._id == _id) {
+                return file;
+            }
+
+            if (Array.isArray(file.files) && file.files.length > 0) {
+                const singleFile = recursiveGetFolder(file.files, _id);
+                if (singleFile != null) {
+                    return singleFile;
+                }
+            }
+        }
+    }
+
+    return null;
 }
 
 function recursiveGetSharedFolder(files, _id) {
-    var singleFile = null;
+    if (!Array.isArray(files)) {
+        return null;
+    }
 
     for (var a = 0; a < files.length; a++) {
         var file = (typeof files[a].file === "undefined") ? files[a] : files[a].file;
@@ -166,14 +197,16 @@ function recursiveGetSharedFolder(files, _id) {
                 return file;
             }
 
-            if (file.files.length > 0) {
-                singleFile = recursiveGetSharedFolder(file.files, _id);
+            if (Array.isArray(file.files) && file.files.length > 0) {
+                const singleFile = recursiveGetSharedFolder(file.files, _id);
                 if (singleFile != null) {
                     return singleFile;
                 }
             }
         }
     }
+
+    return null;
 }
 
 function removeFolderReturnUpdated(arr, _id) {
@@ -232,7 +265,9 @@ function removeSharedFileReturnUpdated(arr, _id) {
 }
 
 function recursiveGetSharedFile(files, _id) {
-    var singleFile = null;
+    if (!Array.isArray(files)) {
+        return null;
+    }
 
     for (var a = 0; a < files.length; a++) {
         var file = (typeof files[a].file === "undefined") ? files[a] : files[a].file;
@@ -243,13 +278,45 @@ function recursiveGetSharedFile(files, _id) {
             }
         }
 
-        if (file.type == "folder" && file.files.length > 0) {
-            singleFile = recursiveGetSharedFile(file.files, _id);
+        if (file.type == "folder" && Array.isArray(file.files) && file.files.length > 0) {
+            const singleFile = recursiveGetSharedFile(file.files, _id);
             if (singleFile != null) {
                 return singleFile;
             }
         }
     }
+
+    return null;
+}
+
+function formatBytes(bytes, decimals = 2) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+function getFolderSize(arr) {
+    var sum = 0;
+    for (var a = 0; a < arr.length; a++) {
+        if(arr[a].type == "folder") {
+            if( arr[a].files.length > 0) {
+                sum += getFolderSize(arr[a].files)
+            }
+        } else {
+            sum += arr[a].size;
+        }
+    } 
+    return sum;
+}
+
+function adminOnly(req, res, next) {
+    if (req.session.user && req.session.user.isAdmin) {
+        return next();
+    }
+    res.redirect('/Login');
 }
 
 mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8hf.mongodb.net/File_server", {
@@ -267,10 +334,124 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
         uploaded: Array,
         sharedWithMe: Array,
         isVerified: Boolean,
-        verification_token: String
+        verification_token: String,
+        isAdmin: { type: Boolean, default: false }
     });
 
     const User = mongoose.model('User', userSchema);
+
+    const fileSchema = new mongoose.Schema({
+        title: String,
+        description: String,
+        filePath: String,
+        createdAt: Date,
+        downloads: { type: Number, default: 0 },
+        emailsSent: { type: Number, default: 0 }
+    });
+
+    const File = mongoose.model('File', fileSchema);
+
+    app.get("/Admin", adminOnly, async function (req, res) {
+        try {
+            const files = await File.find({});
+            res.render("AdminDashboard", {
+                request: req,
+                files: files
+            });
+        } catch (error) {
+            console.error("Error fetching files:", error);
+            res.render("Error", {
+                message: "Error fetching files",
+                error: error
+            });
+        }
+    });
+
+    app.post("/Admin/UploadFile", adminOnly, async function (req, res) {
+        if (req.files.file.size > 0) {
+            const { title, description } = req.fields;
+            const filePath = `public/uploads/${new Date().getTime()}-${req.files.file.name}`;
+    
+            FileSystem.readFile(req.files.file.path, function (err, data) {
+                if (err) throw err;
+                FileSystem.writeFile(filePath, data, async function (err) {
+                    if (err) throw err;
+                    const newFile = new File({
+                        title,
+                        description,
+                        filePath,
+                        createdAt: new Date()
+                    });
+                    await newFile.save();
+    
+                    // Update user's uploaded files
+                    await User.updateOne(
+                        { _id: new ObjectId(req.session.user._id) },
+                        { $push: { uploaded: newFile } }
+                    );
+    
+                    res.redirect("/Admin");
+                });
+                FileSystem.unlink(req.files.file.path, function (err) {
+                    if (err) throw err;
+                });
+            });
+        } else {
+            req.session.status = "error";
+            req.session.message = "Please select a valid file.";
+            res.redirect("/Admin");
+        }
+    });
+
+    app.get("/Admin/FileStats", adminOnly, async function (req, res) {
+        const files = await File.find({});
+        res.render("FileStats", {
+            request: req,
+            files
+        });
+    });
+
+    app.get("/", async function (req, res) {
+        const files = await File.find({});
+        res.render("index", {
+            request: req,
+            files
+        });
+    });
+
+    app.post("/OpenFile", async function (request, result) {
+        const { _id } = request.body;
+
+        if (request.session.user) {
+            var user = await User.findOne({
+                "_id": new ObjectId(request.session.user._id)
+            });
+
+            var fileUploaded = await recursiveGetFile(user.uploaded, _id);
+            var fileShared = await recursiveGetFile(user.sharedWithMe, _id);
+
+            if (fileUploaded == null && fileShared == null) {
+                result.json({
+                    status: "error",
+                    message: "File is neither uploaded nor shared with you."
+                });
+                return false;
+            }
+
+            var file = (fileUploaded == null) ? fileShared : fileUploaded;
+            result.json({
+                status: "success",
+                url: file.filePath
+            });
+            return false;
+        }
+
+        result.json({
+            status: "error",
+            message: "Please login to perform this action."
+        });
+        return false;
+    });
 
     app.post("/DownloadFile", async function (request, result) {
         const _id = request.fields._id;
@@ -307,6 +488,8 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
                         "fileName": file.name
                     });
                 });
+
+                await File.updateOne({ _id: new ObjectId(file._id) }, { $inc: { downloads: 1 } });
             } else {
                 result.json({
                     "status": "error",
@@ -374,6 +557,78 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
             return false;
         }
         result.redirect("/Login");
+    });
+
+    app.get("/Search", async function (request, result) {
+        const search = request.query.search;
+
+        if (request.session.user) {
+            var user = await User.findOne({
+                "_id": new ObjectId(request.session.user._id)
+            });
+            var fileUploaded = await recursiveSearch(user.uploaded, search);
+            var fileShared = await recursiveSearchShared(user.sharedWithMe, search);
+
+            if (fileUploaded == null && fileShared == null) {
+                request.status = "error";
+                request.message = "File/folder '" + search + "' is neither uploaded nor shared with you.";
+
+                result.render("Search", {
+                    "request": request
+                });
+                return false;
+            }
+
+            var file = (fileUploaded == null) ? fileShared : fileUploaded;
+            file.isShared = (fileUploaded == null);
+            result.render("Search", {
+                "request": request,
+                "file": file
+            });
+
+            return false;
+        }
+
+        result.redirect("/Login");
+    });
+
+    app.post("/SendFileEmail", async function (req, res) {
+        const { email, fileId } = req.fields;
+
+        if (req.session.user) {
+            const file = await File.findOne({ _id: new ObjectId(fileId) });
+
+            if (!file) {
+                req.session.status = "error";
+                req.session.message = "File not found.";
+                res.redirect("/MyUploads");
+                return false;
+            }
+
+            const transporter = nodemailer.createTransport(nodemailerObject);
+            const mailOptions = {
+                from: nodemailerFrom,
+                to: email,
+                subject: "File from File Server",
+                text: `Please download the file from the following link: ${mainURL}/DownloadFile/${fileId}`,
+                html: `<p>Please download the file from the following link: <a href="${mainURL}/DownloadFile/${fileId}">Download File</a></p>`
+            };
+
+            try {
+                await transporter.sendMail(mailOptions);
+                await File.updateOne({ _id: new ObjectId(fileId) }, { $inc: { emailsSent: 1 } });
+
+                req.session.status = "success";
+                req.session.message = "File has been sent to the email.";
+                res.redirect("/MyUploads");
+            } catch (error) {
+                req.session.status = "error";
+                req.session.message = "Failed to send email.";
+                res.redirect("/MyUploads");
+            }
+        } else {
+            res.redirect("/Login");
+        }
     });
 
     app.get("/SharedWithMe/:_id?", async function (request, result) {
@@ -641,7 +896,7 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
         result.redirect("/Login");
     });
 
-    app.post("/DeleteFile", async function (request, result) {
+    app.post("/DeleteFile", adminOnly, async function (request, result) {
         const _id = request.fields._id;
 
         if (request.session.user) {
@@ -670,7 +925,7 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
         result.redirect("/Login");
     });
 
-    app.post("/UploadFile", async function (request, result) {
+    app.post("/UploadFile", adminOnly, async function (request, result) {
         if (request.session.user) {
             var user = await User.findOne({
                 "_id": new ObjectId(request.session.user._id)
@@ -730,7 +985,7 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
                             });
 
                             request.session.status = "success";
-                            request.session.message = "Image has been uploaded. Try our premium version for image compression.";
+                            request.session.message = "File has been uploaded.";
 
                             result.redirect("/MyUploads/" + _id);
                         });
@@ -749,7 +1004,7 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
                 }
             } else {
                 request.status = "error";
-                request.message = "Please select a valid image.";
+                request.message = "Please select a valid file.";
 
                 result.render("MyUploads", {
                     "request": request
@@ -847,28 +1102,28 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
 
     app.get("/MyUploads/:_id?", async function (request, result) {
         const _id = request.params._id;
-
+    
         if (request.session.user) {
             var user = await User.findOne({
                 "_id": new ObjectId(request.session.user._id)
             });
-
+    
             if (!user) {
                 request.status = "error";
                 request.message = "User not found.";
                 result.redirect("/Login");
                 return false;
             }
-
+    
             var uploaded = null;
             var folderName = "";
             var createdAt = "";
-
+    
             if (typeof _id === "undefined") {
                 uploaded = user.uploaded;
             } else {
                 var folderObj = await recursiveGetFolder(user.uploaded, _id);
-
+    
                 if (folderObj == null) {
                     request.status = "error";
                     request.message = "Folder not found.";
@@ -881,24 +1136,27 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
                     });
                     return false;
                 }
-
+    
                 uploaded = folderObj.files;
                 folderName = folderObj.folderName;
                 createdAt = folderObj.createdAt;
             }
-
+    
             result.render("MyUploads", {
                 "request": request,
                 "uploaded": uploaded,
                 "_id": _id,
                 "folderName": folderName,
-                "createdAt": createdAt
+                "createdAt": createdAt,
+                "getFolderSize": getFolderSize,
+                "formatBytes": formatBytes
             });
             return false;
         }
-
+    
         result.redirect("/Login");
     });
+    
 
     app.get("/", function (request, result) {
         result.render("index", {
@@ -930,7 +1188,8 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
                     uploaded: [],
                     sharedWithMe: [],
                     isVerified,
-                    verification_token
+                    verification_token,
+                    isAdmin: email === "boyemansojustice@gmail.com" // example admin check
                 });
 
                 await newUser.save();
