@@ -1,0 +1,141 @@
+# File Server Application
+
+## Overview
+
+This project is a file server application built using Node.js, Express, and MongoDB. The application provides functionalities for user registration, authentication, file upload, file sharing, and administrative control. Users can upload files, share them with others, and manage their files through an intuitive web interface. Administrators have additional capabilities to manage all users' files.
+
+## Features
+
+- User Registration and Authentication
+- File Upload and Management
+- Folder Creation and Management
+- File Sharing with Other Users
+- Password Recovery via Email
+- Administrative Dashboard for File Management
+
+## Prerequisites
+
+- Node.js
+- MongoDB
+- Git (optional)
+
+## Getting Started
+
+
+Code Copilot
+Below is a well-written README file for your project.
+
+markdown
+Copy code
+# File Server Application
+
+## Overview
+
+This project is a file server application built using Node.js, Express, and MongoDB. The application provides functionalities for user registration, authentication, file upload, file sharing, and administrative control. Users can upload files, share them with others, and manage their files through an intuitive web interface. Administrators have additional capabilities to manage all users' files.
+
+## Features
+
+- User Registration and Authentication
+- File Upload and Management
+- Folder Creation and Management
+- File Sharing with Other Users
+- Password Recovery via Email
+- Administrative Dashboard for File Management
+
+## Prerequisites
+
+- Node.js
+- MongoDB
+- Git (optional)
+
+## Getting Started
+
+### Clone the Repository
+
+bash
+
+git clone <repository-url>
+cd <repository-directory>
+Install Dependencies
+
+npm install
+
+Environment Variables
+Create a .env file in the root directory and add the following environment variables:
+
+PORT=3000
+MONGODB_URI=<your-mongodb-uri>
+SESSION_SECRET=<your-session-secret>
+EMAIL_USER=<your-email@gmail.com>
+EMAIL_PASS=<your-email-password>
+Run the Application
+
+npm start
+The application will be running on http://localhost:3000.
+
+File Structure
+
+├── public
+│   ├── css
+│   │   └── style.css
+│   ├── js
+│   └── font-awesome-4.7.0
+│       ├── css
+│       ├── fonts
+│       └── less
+├── views
+│   ├── includes
+│   │   ├── header.ejs
+│   │   └── footer.ejs
+│   ├── AdminDashboard.ejs
+│   ├── index.ejs
+│   ├── Login.ejs
+│   ├── Register.ejs
+│   ├── SharedWithMe.ejs
+│   ├── MyUploads.ejs
+│   ├── ForgotPassword.ejs
+│   ├── ResetPassword.ejs
+│   ├── Search.ejs
+│   └── Error.ejs
+├── .env
+├── package.json
+├── app.js
+└── README.md
+Usage
+User Registration
+Navigate to http://localhost:3000/Register.
+Fill out the registration form and submit.
+Verify your email using the link sent to your email address.
+User Login
+Navigate to http://localhost:3000/Login.
+Enter your credentials and log in.
+File Upload
+After logging in, navigate to the "My Uploads" section.
+Click on "Upload" to select and upload a file.
+You can also create folders to organize your files.
+File Sharing
+In the "My Uploads" section, click on "Share" for any file or folder.
+Enter the email address of the user you want to share the file with.
+Password Recovery
+Navigate to http://localhost:3000/ForgotPassword.
+Enter your registered email address to receive a password recovery link.
+Admin Dashboard
+Log in with an admin account.
+Navigate to http://localhost:3000/Admin to access the admin dashboard.
+Admins can upload files, view uploaded files, and manage user files.
+Contributing
+Fork the repository.
+Create a new branch (git checkout -b feature-branch).
+Make your changes.
+Commit your changes (git commit -m 'Add some feature').
+Push to the branch (git push origin feature-branch).
+Open a pull request.
+License
+This project is licensed under the MIT License. See the LICENSE file for more details.
+
+Acknowledgements
+Express
+MongoDB
+Bootstrap
+Font Awesome
+Nodemailer
