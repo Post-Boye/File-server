@@ -19,6 +19,7 @@ app.set("view engine", "ejs");
 app.use("/public/css", express.static(__dirname + "/public/css"));
 app.use("/public/js", express.static(__dirname + "/public/js"));
 app.use("/public/font-awesome-4.7.0", express.static(__dirname + "/public/font-awesome-4.7.0"));
+app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
 
 app.use(session({
     secret: "secret key",
@@ -397,6 +398,7 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
         description: String,
         filePath: String,
         createdAt: Date,
+        size: Number, // Ensure the file size is stored
         downloads: { type: Number, default: 0 },
         emailsSent: { type: Number, default: 0 }
     });
@@ -433,7 +435,7 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
                         description: description || "No description",
                         filePath,
                         createdAt: new Date(),
-                        size: req.files.file.size
+                        size: req.files.file.size // Ensure the file size is stored
                     });
                     await newFile.save();
     
@@ -454,9 +456,6 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
             res.redirect("/Admin");
         }
     });
-    
-    
-    
 
     app.get("/Admin/FileStats", adminOnly, async function (req, res) {
         const files = await File.find({});
@@ -535,13 +534,17 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
 
             if (file.filePath) {
                 FileSystem.readFile(file.filePath, function (error, data) {
-                    result.json({
-                        "status": "success",
-                        "message": "Data has been fetched.",
-                        "arrayBuffer": data,
-                        "fileType": file.type,
-                        "fileName": file.name
-                    });
+                    if (error) {
+                        result.json({
+                            "status": "error",
+                            "message": "File read error."
+                        });
+                        return;
+                    }
+
+                    result.setHeader('Content-disposition', 'attachment; filename=' + file.name);
+                    result.setHeader('Content-type', file.type);
+                    result.send(data);
                 });
 
                 await File.updateOne({ _id: new ObjectId(file._id) }, { $inc: { downloads: 1 } });
@@ -992,94 +995,91 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
         result.redirect("/Login");
     });
 
-    app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
+    app.post("/UploadFile", adminOnly, async function (request, result) {
+        if (request.session.user) {
+            var user = await User.findOne({
+                "_id": new ObjectId(request.session.user._id)
+            });
 
-// Ensure your upload route saves files to "public/uploads"
-app.post("/UploadFile", adminOnly, async function (request, result) {
-    if (request.session.user) {
-        var user = await User.findOne({
-            "_id": new ObjectId(request.session.user._id)
-        });
+            if (request.files.file.size > 0) {
+                const _id = request.fields._id;
 
-        if (request.files.file.size > 0) {
-            const _id = request.fields._id;
+                var uploadedObj = {
+                    "_id": new ObjectId(),
+                    "size": request.files.file.size,
+                    "name": request.files.file.name,
+                    "type": request.files.file.type,
+                    "filePath": "",
+                    "createdAt": new Date().getTime()
+                };
 
-            var uploadedObj = {
-                "_id": new ObjectId(),
-                "size": request.files.file.size,
-                "name": request.files.file.name,
-                "type": request.files.file.type,
-                "filePath": "",
-                "createdAt": new Date().getTime()
-            };
+                var filePath = "";
 
-            var filePath = "";
-
-            if (_id == "") {
-                filePath = "public/uploads/" + user.email + "/" + new Date().getTime() + "-" + request.files.file.name;
-                uploadedObj.filePath = filePath;
-
-                if (!FileSystem.existsSync("public/uploads/" + user.email)) {
-                    FileSystem.mkdirSync("public/uploads/" + user.email, { recursive: true });
-                }
-            } else {
-                var folderObj = await recursiveGetFolder(user.uploaded, _id);
-                if (folderObj) {
-                    filePath = folderObj.folderPath + "/" + request.files.file.name;
+                if (_id == "") {
+                    filePath = "public/uploads/" + user.email + "/" + new Date().getTime() + "-" + request.files.file.name;
                     uploadedObj.filePath = filePath;
+
+                    if (!FileSystem.existsSync("public/uploads/" + user.email)) {
+                        FileSystem.mkdirSync("public/uploads/" + user.email, { recursive: true });
+                    }
+                } else {
+                    var folderObj = await recursiveGetFolder(user.uploaded, _id);
+                    if (folderObj) {
+                        filePath = folderObj.folderPath + "/" + request.files.file.name;
+                        uploadedObj.filePath = filePath;
+                    } else {
+                        request.status = "error";
+                        request.message = "Folder not found.";
+                        result.render("MyUploads", {
+                            "request": request
+                        });
+                        return false;
+                    }
+                }
+
+                if (filePath) {
+                    FileSystem.readFile(request.files.file.path, function (err, data) {
+                        if (err) throw err;
+                        console.log('File read!');
+
+                        FileSystem.writeFile(filePath, data, async function (err) {
+                            if (err) throw err;
+                            console.log('File written!');
+
+                            await User.updateMany({}, {
+                                $push: { "uploaded": uploadedObj }
+                            });
+
+                            request.session.status = "success";
+                            request.session.message = "File has been uploaded.";
+
+                            result.redirect("/MyUploads/" + _id);
+                        });
+
+                        FileSystem.unlink(request.files.file.path, function (err) {
+                            if (err) throw err;
+                            console.log('File deleted!');
+                        });
+                    });
                 } else {
                     request.status = "error";
-                    request.message = "Folder not found.";
+                    request.message = "Invalid file path.";
                     result.render("MyUploads", {
                         "request": request
                     });
-                    return false;
                 }
-            }
-
-            if (filePath) {
-                FileSystem.readFile(request.files.file.path, function (err, data) {
-                    if (err) throw err;
-                    console.log('File read!');
-
-                    FileSystem.writeFile(filePath, data, async function (err) {
-                        if (err) throw err;
-                        console.log('File written!');
-
-                        await User.updateMany({}, {
-                            $push: { "uploaded": uploadedObj }
-                        });
-
-                        request.session.status = "success";
-                        request.session.message = "File has been uploaded.";
-
-                        result.redirect("/MyUploads/" + _id);
-                    });
-
-                    FileSystem.unlink(request.files.file.path, function (err) {
-                        if (err) throw err;
-                        console.log('File deleted!');
-                    });
-                });
             } else {
                 request.status = "error";
-                request.message = "Invalid file path.";
+                request.message = "Please select a valid file.";
+
                 result.render("MyUploads", {
                     "request": request
                 });
             }
         } else {
-            request.status = "error";
-            request.message = "Please select a valid file.";
-
-            result.render("MyUploads", {
-                "request": request
-            });
+            result.redirect("/Login");
         }
-    } else {
-        result.redirect("/Login");
-    }
-});
+    });
 
     app.post("/CreateFolder", async function (request, result) {
         const name = request.fields.name;
@@ -1222,7 +1222,6 @@ app.post("/UploadFile", adminOnly, async function (request, result) {
     
         result.redirect("/Login");
     });
-    
     
 
     app.get("/", function (request, result) {

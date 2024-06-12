@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,12 +7,11 @@
     <link rel="stylesheet" href="/public/css/style.css">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
 </head>
-
 <body>
-    <%- include("includes/header", { "title": "My Uploads" }) %>
+    <%- include ("includes/header", { "title": "My Uploads" }) %>
 
     <div class="container" style="margin-top: 50px; margin-bottom: 50px;">
-        <%- include("includes/ResponseAlert", { "request": request }) %>
+        <%- include ("includes/ResponseAlert", { "request": request }) %>
 
         <div class="row">
             <div class="col-md-4">
@@ -28,7 +26,7 @@
 
             <% if (createdAt) { %>
                 <div class="col-md-4">
-                    Created at:
+                    Created at: 
                     <%
                     createdAt = new Date(createdAt);
                     const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -41,18 +39,15 @@
             <div class="col-md-4">
                 <% if (_id) { %>
                     <div class="dropdown" style="display: initial;">
-                        <button type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
-                            class="btn btn-primary">
+                        <button type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" class="btn btn-primary">
                             More <span class="caret"></span>
                         </button>
                         <ul class="dropdown-menu">
                             <li>
-                                <button type="button" class="btn btn-primary btn-block" onclick="showShareModal(this);"
-                                    data-dismiss="modal" data-id="<%= _id %>" data-type="folder">Share</button>
+                                <button type="button" class="btn btn-primary btn-block" onclick="showShareModal(this);" data-dismiss="modal" data-id="<%= _id %>" data-type="folder">Share</button>
                             </li>
                             <li class="dropdown-menu">
-                                <form method="POST" action="<%= request.mainURL %>/DeleteDirectory"
-                                    onsubmit="return confirm('Are you sure you want to delete this folder and all its files?');">
+                                <form method="POST" action="<%= request.mainURL %>/DeleteDirectory" onsubmit="return confirm('Are you sure you want to delete this folder and all its files?');">
                                     <input type="hidden" name="_id" value="<%= _id %>" required />
                                     <input type="submit" value="Delete" class="btn btn-danger btn-block" />
                                 </form>
@@ -70,32 +65,49 @@
                 <div class="col-md-4" style="margin-top: 30px;">
                     <div class="card">
                         <div class="card-body" style="text-align: center; height: 300px;">
-                            <% if (singleFile.type && singleFile.type.startsWith("image/")) { %>
-                                <img src="/<%= singleFile.filePath %>" alt="<%= singleFile.name %>"
-                                    style="max-width: 100%; max-height: 100%;">
+                            <% if (singleFile.type === "folder") { %>
+                                <div>
+                                    <a href="<%= request.mainURL + '/MyUploads/' + singleFile._id %>">
+                                        <%= singleFile.folderName %>
+                                    </a>
+                                </div>
+                            <% } else if (singleFile.type && singleFile.type.startsWith("image/")) { %>
+                                <img src="/<%= singleFile.filePath %>" alt="<%= singleFile.name %>" style="max-width: 100%; max-height: 100%;">
                             <% } else { %>
-                                <a href="/<%= singleFile.filePath %>" target="_blank"><%= singleFile.name %></a>
+                                <a href="/<%= singleFile.filePath %>" download><%= singleFile.name %></a>
                             <% } %>
                         </div>
                         <div class="card-footer">
                             <div class="row">
                                 <div class="col-md-8">
-                                    <h3>
-                                        <a href="javascript:void(0);" onclick="viewFile(this);"
-                                            data-id="<%= singleFile._id %>" data-name="<%= singleFile.name %>"
-                                            data-type="<%= singleFile.type %>">
-                                            <%= singleFile.title ? singleFile.title.substring(0, 20) : 'Unnamed' %><%= (singleFile.title && singleFile.title.length > 20) ? "..." : "" %>
-                                        </a>
-                                    </h3>
+                                    <% if (singleFile.type === "folder") {
+                                        var fileSize = getFolderSize(singleFile.files) || 0;
+                                        fileSize = formatBytes(fileSize);
+                                    %>
+                                        <h3>
+                                            <a href="<%= request.mainURL + '/MyUploads/' + singleFile._id %>">
+                                                <%= singleFile.folderName ? singleFile.folderName.substring(0, 10) : 'Unnamed' %><%= (singleFile.folderName && singleFile.folderName.length > 10) ? "..." : "" %>
+                                            </a>
+                                        </h3>
+                                    <% } else {
+                                        var fileSize = formatBytes(singleFile.size || 0);
+                                    %>
+                                        <h3>
+                                            <a href="/<%= singleFile.filePath %>" download><%= singleFile.title ? singleFile.title.substring(0, 20) : 'Unnamed' %><%= (singleFile.title && singleFile.title.length > 20) ? "..." : "" %>
+                                            </a>
+                                        </h3>
+                                    <% } %>
                                     <p><%= singleFile.description || "No description" %></p>
                                 </div>
                                 <div class="col-md-4">
-                                    <p style="position: relative; top: 10px;"><%= formatBytes(singleFile.size || 0) %></p>
+                                    <p style="position: relative; top: 10px;"><%= fileSize %></p>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
+                
+                               
             <% }) %>
         </div>
     </div>
@@ -123,8 +135,7 @@
                 <div class="modal-body"></div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" onclick="showShareModal(this);" data-dismiss="modal"
-                        data-id="" data-type="" id="button-share-file">Share</button>
+                    <button type="button" class="btn btn-primary" onclick="showShareModal(this);" data-dismiss="modal" data-id="" data-type="" id="button-share-file">Share</button>
                     <form method="POST" action="<%= request.mainURL %>/DeleteFile" id="form-delete-file">
                         <input type="hidden" name="_id" required />
                         <button type="button" class="btn btn-danger" onclick="confirmDeleteFile(this);">Delete</button>
@@ -140,8 +151,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h4 class="modal-title">Share with</h4>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
-                            aria-hidden="true">&times;</span></button>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
                 </div>
                 <div class="modal-body">
                     <form method="POST" action="<%= request.mainURL %>/share" id="form-share-modal">
@@ -150,8 +160,7 @@
                         <div class="form-group">
                             <label>Enter Email</label>
                             <input type="email" name="email" class="form-control" required />
-                            <button type="button" class="btn btn-default" onclick="searchUserForShare(this);"
-                                style="margin-top: 10px;">Confirm user</button>
+                            <button type="button" class="btn btn-default" onclick="searchUserForShare(this);" style="margin-top: 10px;">Confirm user</button>
                         </div>
                         <div id="user-details-for-share"></div>
                     </form>
@@ -170,8 +179,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h4 class="modal-title">Shared with</h4>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
-                            aria-hidden="true">&times;</span></button>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
                 </div>
                 <div class="modal-body">
                     <p class="loading"></p>
@@ -196,7 +204,7 @@
     </div>
 
     <script>
-        function showShareWithModal(self) {
+        function showShareWithModal(self){
             const _id = self.getAttribute("data-id");
             $("#sharedWithModal").modal("show");
 
@@ -205,20 +213,20 @@
             var ajax = new XMLHttpRequest();
             ajax.open("POST", document.getElementById("base-url").value + "/GetFileSharedWith", true);
 
-            ajax.onreadystatechange = function () {
-                if (this.readyState == 4) {
-                    if (this.status == 200) {
+            ajax.onreadystatechange = function(){
+                if(this.readyState == 4){
+                    if(this.status == 200){
                         var data = JSON.parse(this.responseText);
 
-                        document.querySelector("#sharedWithModal .loading").innerHTML = "";
+                        document.querySelector("#sharedWithModal .loading" ).innerHTML = "";
 
-                        if (data.status == "error") {
+                        if (data.status == "error"){
                             swal("Error", data.message, "error");
                         }
 
-                        if (data.status == "success") {
+                        if (data.status == "success"){
                             var html = ""
-                            for (var a = 0; a < data.users.length; a++) {
+                            for (var a = 0; a < data.users.length; a++){
                                 const user = data.users[a];
 
                                 var sharedAt = user.sharedObj.sharedAt;
@@ -251,36 +259,36 @@
             ajax.send(formData);
         }
 
-        function selectFileForUpload() {
+        function selectFileForUpload(){
             document.getElementById("input-file-upload").click();
         }
 
-        function searchUserForShare(self) {
+        function searchUserForShare(self){
             self.innerHTML = "Loading...";
             self.setAttribute("disabled", "disabled");
 
             var ajax = new XMLHttpRequest();
-            ajax.open("POST", document.getElementById("base-url").value + "/GetUser", true);
+            ajax.open("POST",document.getElementById("base-url").value + "/GetUser", true);
 
             ajax.onreadystatechange = function () {
                 if (this.readyState == 4) {
-                    if (this.status == 200) {
+                    if(this.status == 200) {
                         var data = JSON.parse(this.responseText);
 
                         self.removeAttribute("disabled");
                         self.innerHTML = "Confirm User";
 
-                        if (data.status == "error") {
+                        if (data.status == "error"){
                             swal("Error", data.message, "error");
                         }
 
-                        if (data.status == "success") {
+                        if(data.status == "success"){
                             var html = "";
                             html += "<p>Name: " + data.user.name + "</p>";
                             document.getElementById("user-details-for-share").innerHTML = html;
                         }
                     }
-                    if (this.status == 500) {
+                    if (this.status == 500){
                         console.log(this.responseText);
                     }
                 }
@@ -290,7 +298,7 @@
             ajax.send(formData);
         }
 
-        function showShareModal(self) {
+        function showShareModal(self){
             document.getElementById("form-share-modal")._id.value = self.getAttribute("data-id");
             document.getElementById("form-share-modal").type.value = self.getAttribute("data-type");
             $("#shareModal").modal("show");
@@ -323,7 +331,7 @@
                 icon: "warning",
                 buttons: true,
                 dangerMode: true,
-            }).then(function (isOkay) {
+            }).then(function(isOkay) {
                 if (isOkay) {
                     document.getElementById("form-upload-file").submit();
                 }
@@ -390,7 +398,6 @@
         }
     </script>
 
-    <%- include("includes/footer") %>
+    <%- include ("includes/footer") %>
 </body>
-
 </html>

@@ -35,6 +35,7 @@
                     <th>Title</th>
                     <th>Description</th>
                     <th>File Path</th>
+                    <th>File Size</th> <!-- Add a column for file size -->
                     <th>Downloads</th>
                     <th>Emails Sent</th>
                 </tr>
@@ -44,7 +45,8 @@
                     <tr>
                         <td><%= file.title %></td>
                         <td><%= file.description %></td>
-                        <td><%= file.filePath %></td>
+                        <td><a href="/<%= file.filePath %>" download><%= file.filePath %></a></td>
+                        <td><%= formatBytes(file.size) %></td> <!-- Display file size -->
                         <td><%= file.downloads %></td>
                         <td><%= file.emailsSent %></td>
                     </tr>
