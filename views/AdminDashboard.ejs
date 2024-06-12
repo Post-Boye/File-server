@@ -6,7 +6,7 @@
     <link rel="stylesheet" type="text/css" href="/public/css/style.css">
 </head>
 <body>
-    <%- include ("includes/header", { "title": "Admin Dashboard" }) %>
+    <%- include("includes/header", { "title": "Admin Dashboard" }) %>
 
     <div class="container" style="margin-top: 50px;">
         <h1 class="text-center">Admin Dashboard</h1>
@@ -35,9 +35,9 @@
                     <th>Title</th>
                     <th>Description</th>
                     <th>File Path</th>
-                    <th>File Size</th> <!-- Add a column for file size -->
                     <th>Downloads</th>
                     <th>Emails Sent</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -45,10 +45,15 @@
                     <tr>
                         <td><%= file.title %></td>
                         <td><%= file.description %></td>
-                        <td><a href="/<%= file.filePath %>" download><%= file.filePath %></a></td>
-                        <td><%= formatBytes(file.size) %></td> <!-- Display file size -->
+                        <td><%= file.filePath %></td>
                         <td><%= file.downloads %></td>
                         <td><%= file.emailsSent %></td>
+                        <td>
+                            <form action="/Admin/DeleteFile" method="post" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this file?');">
+                                <input type="hidden" name="_id" value="<%= file._id %>">
+                                <button type="submit" class="btn btn-danger">Delete</button>
+                            </form>
+                        </td>
                     </tr>
                 <% }) %>
             </tbody>
