@@ -312,7 +312,7 @@ function removeSharedFileReturnUpdated(arr, _id) {
 
         if (file.type == "folder" && file.files.length > 0) {
             arr[a]._id = new ObjectId(arr[a]._id);
-            removeSharedFileReturnUpdated(file.files, _id);
+            removeSharedFileReturnUpdated(arr[a].files, _id);
         }
     }
 
@@ -400,7 +400,8 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
         createdAt: Date,
         size: Number, // Ensure the file size is stored
         downloads: { type: Number, default: 0 },
-        emailsSent: { type: Number, default: 0 }
+        emailsSent: { type: Number, default: 0 },
+        type: String // Added type field to store the MIME type of the file
     });
 
     const File = mongoose.model('File', fileSchema);
@@ -435,7 +436,8 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
                         description: description || "No description",
                         filePath,
                         createdAt: new Date(),
-                        size: req.files.file.size // Ensure the file size is stored
+                        size: req.files.file.size, // Ensure the file size is stored
+                        type: req.files.file.type // Store the MIME type
                     });
                     await newFile.save();
     
@@ -474,7 +476,7 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
     });
 
     app.post("/OpenFile", async function (request, result) {
-        const { _id } = request.body;
+        const { _id } = request.fields;
 
         if (request.session.user) {
             var user = await User.findOne({
@@ -510,17 +512,13 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
     app.post("/DownloadFile", async function (request, result) {
         const _id = request.fields._id;
 
-        var link = await User.findOne({
-            "file._id": new ObjectId(_id)
-        });
-
         if (request.session.user) {
             var user = await User.findOne({
                 "_id": new ObjectId(request.session.user._id)
             });
 
             var fileUploaded = await recursiveGetFile(user.uploaded, _id);
-            var fileShared = await recursiveGetFile(user.shareWithMe, _id);
+            var fileShared = await recursiveGetFile(user.sharedWithMe, _id);
 
             if (fileUploaded == null && fileShared == null) {
                 result.json({
@@ -543,7 +541,7 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
                     }
 
                     result.setHeader('Content-disposition', 'attachment; filename=' + file.name);
-                    result.setHeader('Content-type', file.type);
+                    result.setHeader('Content-type', file.type); // Correctly set the content type
                     result.send(data);
                 });
 
@@ -597,7 +595,7 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
             var user = await User.findOne({
                 "_id": new ObjectId(request.session.user._id)
             });
-            var updatedArray = await removeFolderReturnUpdated(user.shareWithMe, _id);
+            var updatedArray = await removeFolderReturnUpdated(user.sharedWithMe, _id);
             for (var a = 0; a < updatedArray.length; a++) {
                 updatedArray[a]._id = new ObjectId(updatedArray[a]._id);
             }
@@ -710,9 +708,9 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
             var files = null;
             var folderName = "";
             if (typeof _id == "undefined") {
-                files = user.shareWithMe;
+                files = user.sharedWithMe;
             } else {
-                var folderObj = await recursiveGetSharedFolder(user.shareWithMe, _id);
+                var folderObj = await recursiveGetSharedFolder(user.sharedWithMe, _id);
 
                 if (folderObj == null) {
                     request.status = "error";
@@ -755,9 +753,9 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
                     "sharedWithMe.sharedBy._id": new ObjectId(request.session.user._id)
                 }]
             });
-            for (var a = 0; a < user.shareWithMe.length; a++) {
-                if (user.shareWithMe[a]._id == _id) {
-                    user.shareWithMe.splice(a, 1);
+            for (var a = 0; a < user.sharedWithMe.length; a++) {
+                if (user.sharedWithMe[a]._id == _id) {
+                    user.sharedWithMe.splice(a, 1);
                 }
             }
 
@@ -769,7 +767,7 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
                 }]
             }, {
                 $set: {
-                    "sharedWithMe": user.shareWithMe
+                    "sharedWithMe": user.sharedWithMe
                 }
             });
 
@@ -798,11 +796,11 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
             var users = [];
             for (a = 0; a < tempUsers.length; a++) {
                 var sharedObj = null;
-                for (var b = 0; b < tempUsers[a].shareWithMe.length; b++) {
-                    if (tempUsers[a].shareWithMe[b].file._id == _id) {
+                for (var b = 0; b < tempUsers[a].sharedWithMe.length; b++) {
+                    if (tempUsers[a].sharedWithMe[b].file._id == _id) {
                         sharedObj = {
-                            "_id": tempUsers[a].shareWithMe[b]._id,
-                            "sharedAt": tempUsers[a].shareWithMe[b].createdAt,
+                            "_id": tempUsers[a].sharedWithMe[b]._id,
+                            "sharedAt": tempUsers[a].sharedWithMe[b].createdAt,
                         };
                     }
                 }
@@ -1511,3 +1509,4 @@ mongoose.connect("mongodb+srv://darkoboyejustice:219Q1KlDHfuwbv92@cluster0.jtds8
 }).catch(error => {
     console.error("Database connection error:", error);
 });
+
